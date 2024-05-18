@@ -395,19 +395,19 @@ def rnn_lyapunov(
     [1] Gary Froyland, Thorsten Hüls, Gary P. Morriss, Thomas M. Watson,
         Computing covariant Lyapunov vectors, Oseledets vectors, and dichotomy projectors: A comparative numerical study,
         Physica D: Nonlinear Phenomena, Volume 247, Issue 1, 2013 (https://arxiv.org/abs/1204.0871)
-    [1] F. Ginelli, P. Poggi, A. Turchi, H. Chaté, R. Livi, and A. Politi.
+    [2] F. Ginelli, P. Poggi, A. Turchi, H. Chaté, R. Livi, and A. Politi.
         Characterizing dynamics with covariant Lyapunov vectors.
         Physical Review Letters, 99(13), September 28 2007.
-    [2] C. L. Wolfe and R. M. Samelson.
+    [3] C. L. Wolfe and R. M. Samelson.
         An efficient method for recovering Lyapunov vectors from singular vectors.
         Tellus: Series A, 59(3):355–366, 2007.
-    [2] P. V. Kuptsov and U. Parlitz.
+    [4] P. V. Kuptsov and U. Parlitz.
         Theory and computation of covariant Lyapunov vectors.
         http://arxiv.org/pdf/1105.5228v2.pdf, 2011.
-    [3] S. V. Ershov and A. B. Potapov.
+    [5] S. V. Ershov and A. B. Potapov.
         On the concept of stationary Lyapunov basis.
         Physica D, 118(3-4):167–198, 1998.
-    [4] V. I. Oseledec.
+    [6] V. I. Oseledec.
         A multiplicative ergodic theorem. Lyapunov characteristic numbers for dynamical systems.
         Trans. Moscow Math. Soc, 1968.
 
