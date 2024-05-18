@@ -43,50 +43,51 @@ rnn_lyap_info = rnn_lyapunov(
     verbose = True,
 )
 ```
-```
-rnn_lyap_info is an AttrDict containing
-    pushforward_data = AttrDict(
-        Q_pushforward = Q_pushforward,
-    )
-    lyap_pushforward_data = AttrDict(
-        lyap_pushforward = lyap_pushforward,
-        lyap_after_pushforward = lyap_after_pushforward,
-    )
-    transience_data = AttrDict(
-        Q_transience = Q_transience,
-        R_transience = R_transience,
-        R_diag_transience = R_diag_transience,
-    )
-    lyap_transience_data = AttrDict(
-        lyap_transience = lyap_transience,
-        lyap_after_transience = lyap_after_transience,
-    )
-    simulation_data = AttrDict(
-        Q_simulation = Q_simul,
-        R_simulation = R_simul,
-        R_diag_simulation = R_diag_simul,
-    )
-    lyap_simulation_data = AttrDict(
-        lyap_simulation = lyap_simul,
-        lyap_after_simulation = lyap_after_simul,
-    )
-    clv_data = AttrDict(
-        CLV = CLV,
-        Q0 = Q0,
-        CLV_coeffs = CLV_coeffs,
-        CLV_simulation = CLV_simul,
-    )
+`rnn_lyap_info` is an AttrDict containing
 
-    rnn_lyapunov_info = AttrDict(
-        pushforward_data = pushforward_data,
-        lyap_pushforward_data = lyap_pushforward_data,
-        transience_data = transience_data,
-        lyap_transience_data = lyap_transience_data,
-        simulation_data = simulation_data,
-        lyap_simulation_data = lyap_simulation_data,
-        clv_data = clv_data,
-        total_lyap_exponent = total_lyap_exponent,
-    )
+```python
+pushforward_data = AttrDict(
+    Q_pushforward = Q_pushforward,
+)
+lyap_pushforward_data = AttrDict(
+    lyap_pushforward = lyap_pushforward,
+    lyap_after_pushforward = lyap_after_pushforward,
+)
+transience_data = AttrDict(
+    Q_transience = Q_transience,
+    R_transience = R_transience,
+    R_diag_transience = R_diag_transience,
+)
+lyap_transience_data = AttrDict(
+    lyap_transience = lyap_transience,
+    lyap_after_transience = lyap_after_transience,
+)
+simulation_data = AttrDict(
+    Q_simulation = Q_simul,
+    R_simulation = R_simul,
+    R_diag_simulation = R_diag_simul,
+)
+lyap_simulation_data = AttrDict(
+    lyap_simulation = lyap_simul,
+    lyap_after_simulation = lyap_after_simul,
+)
+clv_data = AttrDict(
+    CLV = CLV,
+    Q0 = Q0,
+    CLV_coeffs = CLV_coeffs,
+    CLV_simulation = CLV_simul,
+)
+
+rnn_lyapunov_info = AttrDict(
+    pushforward_data = pushforward_data,
+    lyap_pushforward_data = lyap_pushforward_data,
+    transience_data = transience_data,
+    lyap_transience_data = lyap_transience_data,
+    simulation_data = simulation_data,
+    lyap_simulation_data = lyap_simulation_data,
+    clv_data = clv_data,
+    total_lyap_exponent = total_lyap_exponent,
+)
 
 ```
 #### Please read the codebase for more details and tricks involved for differentiablity and consistency
