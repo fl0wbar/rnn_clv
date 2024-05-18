@@ -90,7 +90,7 @@ rnn_lyapunov_info = AttrDict(
 )
 
 ```
-#### Please read the codebase for more details and tricks involved for differentiablity and consistency
+#### Please read the codebase for more details and tricks involved for differentiability and consistency of QR-decomposition based orthonormalization and truncated-SVD during pushforward due to sign/phase flips involved.
 
 
 ### Citations
