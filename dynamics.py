@@ -352,15 +352,14 @@ def rnn_lyapunov(
     transience_inputs: torch.Tensor,  # torch.Tensor inputs for the transcience stage iterations of the rnn
     simulation_inputs: torch.Tensor,  # torch.Tensor inputs for the simulation stage iterations of the rnn
     num_of_subspaces: int = 3,  # number of Oseledets subspaces to compute (equal to no. of Lyapunov exponents and covariant Lyapunov vectors that will be computed)
-    apply_transience: bool = False,
     apply_pushforward: bool = False,
+    apply_transience: bool = True,
     num_pushforward_steps: int = 10,
     num_transient_steps: int = 200,
     num_simulation_steps: int = 200,
     reorthonormalization_interval: int = 2,
     use_id_clv_coeffs_init: bool = True,
     teacher_forcing_alpha: float = 0.125,
-    enable_grads: bool = True,
     rng_seed: int = 42,
     verbose: bool = False,
     **kwargs,
@@ -418,24 +417,21 @@ def rnn_lyapunov(
         which only generates lyapunov exponents of nonzero elements of R's diagonal
         instead of replacing them with ones which results in generating zero as the lyapunov exponent after taking the logarithm
     """
-    # enable gradients through QR, LE and CLV computations (ensure differentiablity)
-    enable_grads = bool(enable_grads)
-    if enable_grads:
-        apply_pushforward = False
+    transience_bs = transience_inputs.shape[0]  # batch_size of transcience inputs
+    simulation_bs = simulation_inputs.shape[0]  # batch_size of simulation inputs
+    assert (
+        transience_bs == simulation_bs
+    ), f"Provide the computation with same batch-sizes for transience and simulation so that hidden states can be transferred from transience to simulation"
+
     transience_input_seq_len = transience_inputs.shape[1]  # sequence-length of transcience inputs
     simulation_input_seq_len = simulation_inputs.shape[1]  # sequence-length of simulation inputs
-
-    # retrieve only a single batch for computations
-    # but keep the batch dimension for compatibility with batched forward and batch-vmapped jacobian computation.
-    transience_inputs = transience_inputs[[0], ...].requires_grad_(enable_grads)
-    simulation_inputs = simulation_inputs[[0], ...].requires_grad_(enable_grads)
 
     assert transience_inputs.shape[-1] == simulation_inputs.shape[-1]
 
     device = transience_inputs.device
 
     # initialize the states of RNN
-    rnn_state0 = rnn_cell_step_module.initialize_state(batch_size=1, device=device)
+    rnn_state0 = rnn_cell_step_module.initialize_state(batch_size=transience_bs, device=device)
 
     num_recurrent_states = len(rnn_state0)
     recurrent_state_feature_size = rnn_state0[0].shape[-1]
@@ -445,6 +441,7 @@ def rnn_lyapunov(
 
     num_simulation_steps = min(simulation_input_seq_len, num_simulation_steps)
     num_transient_steps = min(transience_input_seq_len, num_transient_steps)
+    assert num_simulation_steps > 0
     # ensure num_pushforward_steps are few as it can become inaccurate for larger iterations
     # numerical issues with this approach remain. They stem
     # primarily from the long iterative multiplications involved in building the Jacobian
@@ -468,7 +465,7 @@ def rnn_lyapunov(
     # CLV stands for Covariant Lyapunov Vectors
 
     Q_pushforward, lyap_pushforward, lyap_after_pushforward = (None,) * 3
-    if apply_pushforward:
+    if (num_pushforward_steps > 0) or apply_pushforward:
         vprint(
             verbose,
             f"| ::: RNN-Lyap | Applying push-forward to compute left-singular vectors from Jacobian, {num_pushforward_steps = }",
@@ -489,7 +486,7 @@ def rnn_lyapunov(
             # The sum of the Lyapunov exponents must be equal to the sum of the real-part of eigenvalues of the jacobian (local-LCE)
             # this is a better approximation for systems with relatively simple dynamics
             # or when the Jacobian matrix does not vary significantly along the trajectory.
-            LCE = torch.linalg.eigvals(J.squeeze(0)).real
+            LCE = torch.linalg.eigvals(J.mean(dim=0)).real
             # total_lyap_exponent = total_lyap_exponent + LCE[..., :num_of_subspaces]
             lyap_pushforward[i] = LCE
 
@@ -499,9 +496,7 @@ def rnn_lyapunov(
 
         # compute the left-singular vectors using SVD of the push-forwarded Jacobian
         # to approximate stationary Lyapunov basis at transcience of infinite-steps
-        Q = compute_truncated_svd(J.squeeze(0), k=num_of_subspaces)[0]  # return only left-singular vectors
-        # apply QR orthonormalization over transcience only for the remaining steps
-        num_transient_steps = num_transient_steps - num_pushforward_steps
+        Q = compute_truncated_svd(J.mean(dim=0), k=num_of_subspaces)[0]  # return only left-singular vectors
 
     else:
         # initialize the initial orthonormal basis
@@ -547,7 +542,7 @@ def rnn_lyapunov(
             if int((i + 1) % nREORTH) == 0:
                 # vprint(verbose, f"{i = }, {qr_state_idx = }")
                 # evolve the initially orthonormal system Q in the tangent space along the trajectory using the Jacobian
-                Q = torch.matmul(J.squeeze(0), Q)  # [J, J] @ [J, k] -> [J, k]
+                Q = torch.matmul(J.mean(dim=0), Q)  # [J, J] @ [J, k] -> [J, k]
                 Q, R = qr_accurate(Q)  # Q - [J, k], R - [k, k]
                 # compute lyapunov exponent during the transience
                 R_diag = torch.diagonal(R, offset=0)  # R_diag - [k,]
@@ -600,7 +595,7 @@ def rnn_lyapunov(
         if int((i + 1) % nREORTH) == 0:
             # vprint(verbose, f"{i = }, {qr_state_idx = }")
             # evolve the orthonormal system Q in the tangent space along the trajectory using the Jacobian
-            Q = torch.matmul(J.squeeze(0), Q)  # [J, J] @ [J, k] -> [J, k]
+            Q = torch.matmul(J.mean(dim=0), Q)  # [J, J] @ [J, k] -> [J, k]
             Q, R = qr_accurate(Q)  # Q - [J, k], R - [k, k]
             # compute lyapunov exponent during the transience
             R_diag = torch.diagonal(R, offset=0)  # R_diag - [k,]
@@ -648,15 +643,37 @@ def rnn_lyapunov(
 
     CLV = torch.matmul(Q0, CLV_coeffs)
 
-    pushforward_data = AttrDict(Q_pushforward=Q_pushforward)
-    lyap_pushforward_data = AttrDict(lyap_pushforward=lyap_pushforward, lyap_after_pushforward=lyap_after_pushforward)
-    transience_data = AttrDict(
-        Q_transience=Q_transience, R_transience=R_transience, R_diag_transience=R_diag_transience
+    pushforward_data = AttrDict(
+        Q_pushforward=Q_pushforward,
     )
-    lyap_transience_data = AttrDict(lyap_transience=lyap_transience, lyap_after_transience=lyap_after_transience)
-    simulation_data = AttrDict(Q_simulation=Q_simul, R_simulation=R_simul, R_diag_simulation=R_diag_simul)
-    lyap_simulation_data = AttrDict(lyap_simulation=lyap_simul, lyap_after_simulation=lyap_after_simul)
-    clv_data = AttrDict(CLV=CLV, Q0=Q0, CLV_coeffs=CLV_coeffs, CLV_simulation=CLV_simul)
+    lyap_pushforward_data = AttrDict(
+        lyap_pushforward=lyap_pushforward,
+        lyap_after_pushforward=lyap_after_pushforward,
+    )
+    transience_data = AttrDict(
+        Q_transience=Q_transience,
+        R_transience=R_transience,
+        R_diag_transience=R_diag_transience,
+    )
+    lyap_transience_data = AttrDict(
+        lyap_transience=lyap_transience,
+        lyap_after_transience=lyap_after_transience,
+    )
+    simulation_data = AttrDict(
+        Q_simulation=Q_simul,
+        R_simulation=R_simul,
+        R_diag_simulation=R_diag_simul,
+    )
+    lyap_simulation_data = AttrDict(
+        lyap_simulation=lyap_simul,
+        lyap_after_simulation=lyap_after_simul,
+    )
+    clv_data = AttrDict(
+        CLV=CLV,
+        Q0=Q0,
+        CLV_coeffs=CLV_coeffs,
+        CLV_simulation=CLV_simul,
+    )
 
     rnn_lyapunov_info = AttrDict(
         pushforward_data=pushforward_data,
