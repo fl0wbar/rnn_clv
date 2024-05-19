@@ -31,15 +31,14 @@ rnn_lyap_info = rnn_lyapunov(
     transience_inputs = trs_inputs.to(DEVICE),
     simulation_inputs = sim_inputs.to(DEVICE),
     num_of_subspaces = num_lyap_exp,  # number of Oseledets subspaces to compute (equal to no. of Lyapunov exponents and covariant Lyapunov vectors that will be computed)
-    apply_transience = True,
     apply_pushforward = True,
-    num_transient_steps = 200,
-    num_pushforward_steps = 10,
-    num_simulation_steps = 200,
+    apply_transience = True,
+    num_pushforward_steps = n_pushforward_steps,
+    num_transient_steps = n_transient_steps,
+    num_simulation_steps = n_simulation_steps,
     reorthonormalization_interval = n_reorth,
     use_id_clv_coeffs_init = True,
     teacher_forcing_alpha = 0.125,
-    enable_grads = True,
     verbose = True,
 )
 ```
