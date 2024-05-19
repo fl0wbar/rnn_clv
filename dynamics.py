@@ -371,7 +371,7 @@ def rnn_lyapunov(
         partial differential equations, nonautonomous differentiable dynamical systems, random dynamical systems etc.
     = These vectors identify spatially varying directions of specific asymptotic growth rates and obey equivariance principles.
     = This method uses an improved algorithm based on Ginelli Scheme (Algorithm 4.5 from Froyland2013).
-    = The Ginelli Scheme was first presented by Ginelli et al. in [17] as a method for accurately computing the covariant Lyapunov vectors
+    = The Ginelli Scheme was first presented by Ginelli et al. in [2] as a method for accurately computing the covariant Lyapunov vectors
         of an orbit of an invertible differentiable dynamical system where the A(x) = DT(x) are the Jacobian matrices of the flow or map.
         1.  Estimates of the Wj(x) (CLV's) are found by constructing equivariant subspaces Sj(x) = W1(x) ⊕ · · · ⊕ Wj(x) and
             filtering the invariant directions contained therein using a power method on the inverse system restricted to the subspaces Sj(x).
