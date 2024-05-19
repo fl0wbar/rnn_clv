@@ -335,7 +335,7 @@ def flip_signs_QR(Q: torch.Tensor, R: torch.Tensor, dim1: int = -2, dim2: int = 
     # ref : https://math.stackexchange.com/questions/2237262/is-there-a-correct-qr-factorization-result
     # ref : https://stackoverflow.com/questions/36637322/qr-decomposition-in-r-forcing-a-positive-diagonal
     R_diag = R.diagonal(offset=0, dim1=dim1, dim2=dim2).diag_embed(offset=0, dim1=dim1, dim2=dim2)
-    R_sign = torch.sign(R_diag)
+    R_sign = torch.sgn(R_diag)
     Q = torch.matmul(Q, R_sign)
     R = torch.matmul(R_sign, R)
     return Q, R
