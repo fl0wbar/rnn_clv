@@ -348,10 +348,10 @@ def qr_accurate(A: torch.Tensor, dim1: int = -2, dim2: int = -1):
 
 
 def rnn_lyapunov(
-    rnn_cell_step_module: nn.Module,  # nn.Module of a rnn-cell implementing a step and a step_jacobian functions/methods
-    transience_inputs: torch.Tensor,  # torch.Tensor inputs for the transcience stage iterations of the rnn
-    simulation_inputs: torch.Tensor,  # torch.Tensor inputs for the simulation stage iterations of the rnn
-    num_of_subspaces: int = 3,  # number of Oseledets subspaces to compute (equal to no. of Lyapunov exponents and covariant Lyapunov vectors that will be computed)
+    rnn_cell_step_module: nn.Module,
+    transience_inputs: torch.Tensor,
+    simulation_inputs: torch.Tensor,
+    num_of_subspaces: int = 3,
     apply_pushforward: bool = False,
     apply_transience: bool = True,
     num_pushforward_steps: int = 10,
@@ -370,7 +370,6 @@ def rnn_lyapunov(
     = Covariant vectors, Lyapunov vectors, or Oseledets vectors are used for model analyses of systems like
         partial differential equations, nonautonomous differentiable dynamical systems, random dynamical systems etc.
     = These vectors identify spatially varying directions of specific asymptotic growth rates and obey equivariance principles.
-    = This method uses an improved algorithm based on Ginelli Scheme (Algorithm 4.5 from Froyland2013).
     = The Ginelli Scheme was first presented by Ginelli et al. in [2] as a method for accurately computing the covariant Lyapunov vectors
         of an orbit of an invertible differentiable dynamical system where the A(x) = DT(x) are the Jacobian matrices of the flow or map.
         1.  Estimates of the Wj(x) (CLV's) are found by constructing equivariant subspaces Sj(x) = W1(x) ⊕ · · · ⊕ Wj(x) and
@@ -386,7 +385,49 @@ def rnn_lyapunov(
             We have chosen the above notation R(x, n) specifically since, defined in this way, R forms a cocycle which is the restriction of A to the invariant subspaces Sj.
         7.  c(x) is the vector of coefficients of the Lyapunov/Oseledets-vector/CLV of the cocycle A
         8.  We may approximate c(x) numerically using a simple power method on the inverse cocycle R^(−1) (which exists since λ1 > λ2 > ... > −∞).
-        9.  Wj(x) = Qj(x)*cj(x)
+        9.  Wj(x) = Qj(x)*cj(x), these are the Lyapunov/Oseledets vectors or Covariant-Lyapunov-Vectors(CLV)
+    = This method uses an improved algorithm based on Ginelli Scheme (Algorithm 4.5 from Froyland2013).
+        -   the improvement comes from better convergence in limited data scenarios
+        -   In the situation where the values of num_transient_steps and num_simulation_steps are limited, one can choose those vectors
+            that are optimised for growth over the shorter time interval. This was achieved in [3] by computing the left singular vectors of Jacobian.
+            This approach works well for small num_transient_steps but can become inaccurate for very large num_transient_steps
+            due to numerical issues arising from primarily the long multiplication involved in building the Jacobian over num_pushforward_steps.
+            This results in the Jacobian(J) becoming too singular and hence Q/Q0 poorly approximates the stationary Lyapunov basis at transience(s_infinity).
+
+    Parameters
+    ----------
+    rnn_cell_step_module: nn.Module
+        nn.Module of a rnn-cell implementing a step and a step_jacobian functions/methods
+    transience_inputs: torch.Tensor
+        torch.Tensor inputs for the transcience stage iterations of the rnn
+    simulation_inputs: torch.Tensor
+        torch.Tensor inputs for the simulation stage iterations of the rnn
+    num_of_subspaces: int
+        number of Oseledets subspaces to compute
+        (equal to no. of Lyapunov exponents and covariant Lyapunov vectors that will be computed)
+    apply_pushforward: bool
+        use SVD based initialization of orthogonal vectors for better approximation in low-data/iterations regime
+    apply_transience: bool
+        run the rnn-cell for certain steps so that nearest steps dont lie on the same trajectory
+    num_pushforward_steps: int
+        number of iterations after which the Jacobian is used for SVD based initialization,
+        ensure its enough so that enough data is sampled, but not so large that Jacobian is too singular.
+    num_transient_steps: int
+        number of iterations required by the rnn cell to reach a transient state.
+    num_simulation_steps: int
+        number of forward iterations performed for generating the cocycle for CLV computation.
+    reorthonormalization_interval: int
+        interval over which the tangent-system (Q) is orthonormalized for saving computations
+        the selection of reorthonormalization_interval clearly impacts the second half of the spectrum,
+        the first half remains nearly identical for all these selections
+    use_id_clv_coeffs_init: bool
+        initialize the CLV coefficients with an identity matrix
+    teacher_forcing_alpha: float
+        interpolate actual input and predicted input from the output as next input into rnn
+    rng_seed: int
+        prng seed used for random operations
+    verbose: bool
+        for extra information output
 
 
     References
@@ -457,6 +498,7 @@ def rnn_lyapunov(
 
     Q = None
     J = None
+    Psi = None
     total_lyap_exponent = torch.zeros([num_of_subspaces], dtype=torch.float32, device=device)
 
     nREORTH = max(1, int(reorthonormalization_interval))
@@ -478,15 +520,23 @@ def rnn_lyapunov(
         rnn_pushforward_input = transience_inputs[:, 0, ...]
         # num. of local lyapunov exponents computed = jacobian_size
         lyap_pushforward = torch.zeros([num_pushforward_steps, jacobian_size], dtype=torch.float32, device=device)
+
+        Psi = torch.eye(jacobian_size, dtype=torch.float32, device=device)
         for i in range(0, num_pushforward_steps, 1):
+            # compute Jacobian and cell outputs of the RNN
             J, pushforward_output, rnn_state_pushforward = rnn_cell_step_module.step_jacobian(
                 rnn_pushforward_input, rnn_state_pushforward
             )
             rnn_pushforward_input = pushforward_output
+            # build the Jacobian over num_pushforward_steps
+            # Psi can end up having numerical issues (being singular) due to this repeated matmul
+            Psi = torch.matmul(torch.mean(J, dim=0), Psi)  # [J, J] @ [J, J] -> [J, J]
+            Psi = safe_normalize(Psi)  # [J, J]
+
             # The sum of the Lyapunov exponents must be equal to the sum of the real-part of eigenvalues of the jacobian (local-LCE)
             # this is a better approximation for systems with relatively simple dynamics
             # or when the Jacobian matrix does not vary significantly along the trajectory.
-            LCE = torch.linalg.eigvals(J.mean(dim=0)).real
+            LCE = torch.linalg.eigvals(Psi).real
             # total_lyap_exponent = total_lyap_exponent + LCE[..., :num_of_subspaces]
             lyap_pushforward[i] = LCE
 
@@ -494,9 +544,9 @@ def rnn_lyapunov(
         lyap_pushforward = lyap_pushforward / num_pushforward_steps
         lyap_after_pushforward = lyap_pushforward[-1]
 
-        # compute the left-singular vectors using SVD of the push-forwarded Jacobian
+        # compute the left-singular vectors using SVD of the push-forwarded Jacobian (Psi)
         # to approximate stationary Lyapunov basis at transcience of infinite-steps
-        Q = compute_truncated_svd(J.mean(dim=0), k=num_of_subspaces)[0]  # return only left-singular vectors
+        Q = compute_truncated_svd(Psi, k=num_of_subspaces)[0]  # return only left-singular vectors
 
     else:
         # initialize the initial orthonormal basis
