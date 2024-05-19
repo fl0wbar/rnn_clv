@@ -386,11 +386,12 @@ def rnn_lyapunov(
         7.  c(x) is the vector of coefficients of the Lyapunov/Oseledets-vector/CLV of the cocycle A
         8.  We may approximate c(x) numerically using a simple power method on the inverse cocycle R^(−1) (which exists since λ1 > λ2 > ... > −∞).
         9.  Wj(x) = Qj(x)*cj(x), these are the Lyapunov/Oseledets vectors or Covariant-Lyapunov-Vectors(CLV)
-    = This method uses an improved algorithm based on Ginelli Scheme (Algorithm 4.5 from Froyland2013).
+    = This method uses an improved algorithm based on Ginelli Scheme (Algorithm 4.5 from Froyland2013[1]).
         -   the improvement comes from better convergence in limited data scenarios
-        -   In the situation where the values of num_transient_steps and num_simulation_steps are limited, one can choose those vectors
-            that are optimised for growth over the shorter time interval. This was achieved in [3] by computing the left singular vectors of Jacobian.
-            This approach works well for small num_transient_steps but can become inaccurate for very large num_transient_steps
+        -   In the situation where the values of num_transient_steps and num_simulation_steps are limited,
+            one can choose those vectors that are optimised for growth over the shorter time interval.
+            This was achieved in [3] by computing the left singular vectors of push-forwarded Jacobian after num_pushforward_steps.
+            This approach works well for small num_pushforward_steps but can become inaccurate for very large num_pushforward_steps
             due to numerical issues arising from primarily the long multiplication involved in building the Jacobian over num_pushforward_steps.
             This results in the Jacobian(J) becoming too singular and hence Q/Q0 poorly approximates the stationary Lyapunov basis at transience(s_infinity).
 
